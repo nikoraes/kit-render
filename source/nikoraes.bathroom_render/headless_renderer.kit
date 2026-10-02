@@ -1,0 +1,23 @@
+[package]
+title = "Headless RTX Renderer"
+version = "1.0.0"
+
+# Core USD & stage management
+"omni.usd" = {}
+"omni.hydra.scene_delegate" = {}
+
+# RTX rendering & the MDL material compiler -- the part the ovrtx wheel lacks
+"omni.hydra.rtx" = {}
+"omni.renderer.rtx" = {}
+"omni.mdl.neuraylib" = {}
+
+# capture
+"omni.kit.renderer.core" = {}
+"omni.kit.viewport.utility" = {}
+"omni.kit.capture.viewport" = {}
+
+[settings]
+app.headless = true
+app.asyncInit = false
+rtx.raytracing.cached.enabled = true
+rtx.hydra.enableHydra = true
