@@ -122,8 +122,12 @@ publish_pip_cache = false
 ########################################################################################################################
 
 [repo_precache_exts]
-# Apps to run and precache
+# Apps to run and precache. Without an entry here the precacher is a no-op:
+# it resolves the app's extension dependencies by launching Kit with the .kit
+# manifest and reading back what it enabled. An empty list means nothing to
+# resolve, so no extensions are downloaded and the build produces a stub kit.
 apps = [
+    "nikoraes.bathroom_render.kit",
 ]
 
 # registries = [
