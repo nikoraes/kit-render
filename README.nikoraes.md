@@ -24,40 +24,46 @@ pulls at build time. So the template is the route, not pip.
 git clone https://github.com/nikoraes/kit-render.git
 cd kit-render
 
-# accept the governing terms, pick "Application" then "Kit Base Editor",
-# and accept the defaults for name / display name / version.
-.\repo.bat template new
-
+.\tools\seed-packman.ps1
 .\repo.bat build
 ```
 
-The first build downloads the Kit kernel and the full extension stack. Expect it
-to be large and to take a while; the first *launch* of a graphical app compiles
-shaders for 5–8 minutes.
+Behind a corporate TLS-inspecting proxy, Zscaler blocks `.7z` from CDN hosts, and
+packman needs nine of them. `seed-packman.ps1` pre-places them in
+`C:\packman-repo\chk\` so packman treats them as already installed and never
+requests them. See [docs/zscaler-tls.md](docs/zscaler-tls.md) for the CA bundle
+(`C:\Users\NRaes\.ca-bundle.pem`) that fixes the certificate error first.
+
+The extension stack itself is *not* affected — Kit's registry client
+(`omni.client.lib`) fetches it independently of packman, so no seed is needed
+there.
+
+Expect the first build to pull ~7.7 GB of extensions into
+`%LOCALAPPDATA%\ov\data\exts\v2\`, and the first *graphical* launch to
+compile shaders for 5–8 minutes.
 
 ### The app already exists here
 
-`apps/nikoraes.bathroom_render.kit` is committed, so you do **not** need to run
-`template new` — just:
-
-```powershell
-.\repo.bat build
-```
-
-It is `kit_base_editor` with the variables substituted, plus these explicit
-dependencies, because they are the ones that were missing everywhere else:
+`source/apps/nikoraes.bathroom_render.kit` is committed, so there is no
+`repo template new` step. It is `kit_base_editor` with the variables
+substituted, plus four dependencies named explicitly because they are the ones
+a textured render needs:
 
 ```toml
 "omni.hydra.rtx" = {}              # Viewport renderer
 "omni.hydra.scene_delegate" = {}   # Hydrate delegate resolution
-"omni.renderer.rtx" = {}           # RTX renderer core
 "omni.mdl.neuraylib" = {}          # MDL material compiler: USD->MDL->PTX
 "omni.mdl" = {}                    # MDL core
 ```
 
 Keeping the base editor (rather than a stripped service) means the same app
-gives you a viewport for debugging materials interactively — which is what you
-wanted.
+gives you a viewport for debugging materials interactively.
+
+> **Do not add dependencies from memory.** A hand-written `omni.renderer.rtx`
+> made the solver fail with *"(none found)"* — that extension does not exist.
+> Check a real name against the registry index the client caches at
+> `%LOCALAPPDATA%\ov\data\exts\v2\index\*\summaries.json` (670 packages
+> across `kit/prod/default` and `kit/prod/sdk`).
 
 ## Layout
 
