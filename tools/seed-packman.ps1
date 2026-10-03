@@ -18,49 +18,78 @@ $ErrorActionPreference = "Stop"
 # Verified against packman's own code: an empty root reports status=2 (MISSING),
 # a seeded one status=0 (INSTALLED).
 #
-# Garage is on the LAN, so this download is not proxied. Credentials come from
-# the same place the render queue uses them.
+# Garage is on the LAN, so this download is not proxied.
 
-$Root      = "C:\packman-repo"
-$Work      = Join-Path $env:TEMP "packman-preseed"
-$Tarball   = "$Work\packman-preseed.tar.gz"
-$Expected  = "008310e2065a272a64891c9b37a8fb57d062d8650fe7003973288032afb9c670"
-$Bucket    = "render"
-$Key       = "packman-preseed/packman-preseed-20261002.tar.gz"
-$Endpoint  = "https://s3.local.raes.konnektr.io"
+$Root     = "C:\packman-repo"
+$Work     = Join-Path $env:TEMP "packman-preseed"
+$Tarball  = "$Work\packman-preseed.tar.gz"
+$Expected = "008310e2065a272a64891c9b37a8fb57d062d8650fe7003973288032afb9c670"
 
 if (Test-Path $Work) { Remove-Item -Recurse -Force $Work }
 New-Item -ItemType Directory -Force $Work | Out-Null
 
-Write-Host "Fetching pre-seed from $Endpoint ..." -ForegroundColor Cyan
-
-# Credentials: the render queue's env file if present, else the ambient profile.
+# ---- credentials -----------------------------------------------------------
+# Same env file the render queue uses. Garage needs path-style addressing and
+# s3v4, and the endpoint must be passed as endpoint_url= -- AWS_ENDPOINT_URL is
+# ignored by some botocore versions, which silently sends the request to real
+# AWS and yields a 400 from HeadObject.
 $EnvFile = Join-Path $env:APPDATA "renderq\renderq.env"
 $creds = @{}
 if (Test-Path $EnvFile) {
     Get-Content $EnvFile | ForEach-Object {
-        if ($_ -match '^\s*([^#=]+?)\s*=\s*(.+?)\s*$') { $creds[$matches[1].Trim()] = $matches[2].Trim() }
+        if ($_ -match '^\s*([^#=][^=]*?)\s*=\s*(.+?)\s*$') { $creds[$matches[1].Trim()] = $matches[2].Trim() }
     }
 }
 $ak = if ($creds["RENDERQ_ACCESS_KEY"]) { $creds["RENDERQ_ACCESS_KEY"] } else { $env:RENDERQ_ACCESS_KEY }
 $sk = if ($creds["RENDERQ_SECRET_KEY"]) { $creds["RENDERQ_SECRET_KEY"] } else { $env:RENDERQ_SECRET_KEY }
-if (-not $ak -or -not $sk) {
-    throw "no S3 credentials. Set RENDERQ_ACCESS_KEY / RENDERQ_SECRET_KEY, or populate $EnvFile"
+$ep = if ($creds["RENDERQ_ENDPOINT"])  { $creds["RENDERQ_ENDPOINT"]  } else { $env:RENDERQ_ENDPOINT  }
+$rg = if ($creds["RENDERQ_REGION"])    { $creds["RENDERQ_REGION"]    } else { $env:RENDERQ_REGION    }
+$bk = if ($creds["RENDERQ_BUCKET"])    { $creds["RENDERQ_BUCKET"]    } else { $env:RENDERQ_BUCKET    }
+
+if (-not $ak -or -not $sk -or -not $ep) {
+    throw "no S3 credentials. Populate $EnvFile with RENDERQ_ACCESS_KEY / RENDERQ_SECRET_KEY / RENDERQ_ENDPOINT"
 }
+if (-not $rg) { $rg = "garage" }
+if (-not $bk) { $bk = "render" }
 
-$env:AWS_ACCESS_KEY_ID = $ak
-$env:AWS_SECRET_ACCESS_KEY = $sk
-$env:AWS_DEFAULT_REGION  = "garage"
+Write-Host "Fetching pre-seed from $ep (bucket $bk) ..." -ForegroundColor Cyan
 
-$env:AWS_ENDPOINT_URL = $Endpoint
-uv run --with boto3 python -c @"
-import boto3, os
-s3 = boto3.client('s3')
-s3.download_file('$Bucket', '$Key', r'$Tarball')
-print('  downloaded', os.path.getsize(r'$Tarball'), 'bytes')
-"@
+# Write the downloader to a file rather than inlining it: uv's python -c with a
+# here-string mangles quoting of the r'' paths.
+$Py = Join-Path $Work "_dl.py"
+@"
+import os, sys
+import botocore.config
+import boto3
+
+s3 = boto3.client(
+    "s3",
+    endpoint_url=os.environ["S3_ENDPOINT"],
+    region_name=os.environ["S3_REGION"],
+    aws_access_key_id=os.environ["S3_AK"],
+    aws_secret_access_key=os.environ["S3_SK"],
+    config=botocore.config.Config(
+        signature_version="s3v4",
+        s3={"addressing_style": "path"},
+        retries={"max_attempts": 5, "mode": "standard"},
+        request_checksum_calculation="when_required",
+        response_checksum_validation="when_required",
+    ),
+)
+bucket, key, dest = sys.argv[1], sys.argv[2], sys.argv[3]
+s3.download_file(bucket, key, dest)
+print("  downloaded", os.path.getsize(dest), "bytes")
+"@ | Set-Content -Path $Py -Encoding UTF8
+
+$env:S3_ENDPOINT = $ep
+$env:S3_REGION   = $rg
+$env:S3_AK       = $ak
+$env:S3_SK       = $sk
+
+uv run --with boto3 python $Py $bk "packman-preseed/packman-preseed-20261002.tar.gz" $Tarball
 if ($LASTEXITCODE -ne 0) { throw "download failed" }
 
+# ---- verify, then install --------------------------------------------------
 Write-Host "Verifying sha256 ..." -ForegroundColor Cyan
 $Actual = (Get-FileHash $Tarball -Algorithm SHA256).Hash.ToLower()
 if ($Actual -ne $Expected) {
