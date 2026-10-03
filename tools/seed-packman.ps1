@@ -2,9 +2,8 @@ $ErrorActionPreference = "Stop"
 
 # Install the packman pre-seed that sidesteps Zscaler's .7z-from-CDN block.
 #
-# Zscaler blocks `.7z` downloads from CDN-categorised hosts. The build needs
-# nine of them from d4i3qtqj3r0z5.cloudfront.net, so `.
-epo.bat build` dies with:
+# Zscaler blocks 7z downloads from CDN-categorised hosts. The build needs
+# nine of them from d4i3qtqj3r0z5.cloudfront.net, so the build dies with:
 #
 #     PackmanError: Unable to download file from ... - 403 Forbidden
 #
