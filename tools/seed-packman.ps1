@@ -7,10 +7,16 @@ $ErrorActionPreference = "Stop"
 #
 #     PackmanError: Unable to download file from ... - 403 Forbidden
 #
-# It surfaces one at a time, each costing a full build cycle: first the seven
-# repo tools (repo_man, repo_build, repo_kit_tools, repo_test, repo_package,
-# repo_kit_template, repo_usd), then the kit-sdk deps (boost-preprocessor,
-# pybind11). Both batches are in this one tarball.
+# It surfaces one at a time, each costing a full build cycle. All three
+# discovered batches are in this one tarball:
+#
+#   repo tools     repo_man, repo_build, repo_kit_tools, repo_test,
+#                  repo_package, repo_kit_template, repo_usd
+#   kit-sdk deps   boost-preprocessor, pybind11
+#   platform       python (a .7z, not the .zip the first log suggested)
+#
+# The .zip packages (python was one on the very first attempt, plus the two
+# kit_*_templates) need no seed: Zscaler only blocks .7z.
 #
 # packman skips any package that is already installed:
 #
@@ -28,7 +34,7 @@ $ErrorActionPreference = "Stop"
 $Root     = "C:\packman-repo"
 $Work     = Join-Path $env:TEMP "packman-preseed"
 $Tarball  = "$Work\packman-preseed.tar.gz"
-$Expected = "7710a3b350a9f9558c605c13b3d50a3df5cb526811c2cab944d1f65d2c49decb"
+$Expected = "7acb375b3ee99c9a0535c098a848a09bd2ea02b62bf6d621f093473eaceb9c60"
 
 if (Test-Path $Work) { Remove-Item -Recurse -Force $Work }
 New-Item -ItemType Directory -Force $Work | Out-Null
@@ -91,7 +97,7 @@ $env:S3_REGION   = $rg
 $env:S3_AK       = $ak
 $env:S3_SK       = $sk
 
-uv run --with boto3 python $Py $bk "packman-preseed/packman-seed-v2.tar.gz" $Tarball
+uv run --with boto3 python $Py $bk "packman-preseed/packman-seed-v3.tar.gz" $Tarball
 if ($LASTEXITCODE -ne 0) { throw "download failed" }
 
 # ---- verify, then install --------------------------------------------------
