@@ -2,10 +2,16 @@ $ErrorActionPreference = "Stop"
 
 # Install the packman pre-seed that sidesteps Zscaler's .7z-from-CDN block.
 #
-# Zscaler blocks `.7z` downloads from CDN-categorised hosts. packman needs seven
-# of them from d4i3qtqj3r0z5.cloudfront.net, so `.\repo.bat build` dies with:
+# Zscaler blocks `.7z` downloads from CDN-categorised hosts. The build needs
+# nine of them from d4i3qtqj3r0z5.cloudfront.net, so `.
+epo.bat build` dies with:
 #
 #     PackmanError: Unable to download file from ... - 403 Forbidden
+#
+# It surfaces one at a time, each costing a full build cycle: first the seven
+# repo tools (repo_man, repo_build, repo_kit_tools, repo_test, repo_package,
+# repo_kit_template, repo_usd), then the kit-sdk deps (boost-preprocessor,
+# pybind11). Both batches are in this one tarball.
 #
 # packman skips any package that is already installed:
 #
@@ -23,7 +29,7 @@ $ErrorActionPreference = "Stop"
 $Root     = "C:\packman-repo"
 $Work     = Join-Path $env:TEMP "packman-preseed"
 $Tarball  = "$Work\packman-preseed.tar.gz"
-$Expected = "008310e2065a272a64891c9b37a8fb57d062d8650fe7003973288032afb9c670"
+$Expected = "7710a3b350a9f9558c605c13b3d50a3df5cb526811c2cab944d1f65d2c49decb"
 
 if (Test-Path $Work) { Remove-Item -Recurse -Force $Work }
 New-Item -ItemType Directory -Force $Work | Out-Null
@@ -86,7 +92,7 @@ $env:S3_REGION   = $rg
 $env:S3_AK       = $ak
 $env:S3_SK       = $sk
 
-uv run --with boto3 python $Py $bk "packman-preseed/packman-preseed-20261002.tar.gz" $Tarball
+uv run --with boto3 python $Py $bk "packman-preseed/packman-seed-v2.tar.gz" $Tarball
 if ($LASTEXITCODE -ne 0) { throw "download failed" }
 
 # ---- verify, then install --------------------------------------------------
@@ -100,7 +106,7 @@ Write-Host "  sha256 OK" -ForegroundColor Green
 Write-Host "Extracting ..." -ForegroundColor Cyan
 tar -xzf $Tarball -C $Work
 
-$Src = Join-Path $Work "packman-preseed\chk"
+$Src = Join-Path $Work "chk"
 if (-not (Test-Path $Src)) { throw "extracted tree missing chk\ -- wrong archive layout" }
 
 New-Item -ItemType Directory -Force "$Root\chk" | Out-Null
