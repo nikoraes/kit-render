@@ -24,8 +24,18 @@ pulls at build time. So the template is the route, not pip.
 git clone https://github.com/nikoraes/kit-render.git
 cd kit-render
 
-.\tools\seed-packman.ps1
+.\tools\seed-packman.cmd
 .\repo.bat build
+```
+
+Use the `.cmd`, not the `.ps1` — corporate execution policy blocks running
+`.ps1` directly (`PSSecurityException`). The wrapper uses
+`powershell -ExecutionPolicy Bypass`, which applies to that one process and
+leaves the machine's policy untouched. If you prefer otherwise:
+
+```powershell
+Unblock-File .\tools\seed-packman.ps1          # then run the .ps1 directly
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned   # or allow scripts for your user
 ```
 
 Behind a corporate TLS-inspecting proxy, Zscaler blocks `.7z` from CDN hosts, and
