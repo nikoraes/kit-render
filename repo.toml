@@ -130,6 +130,21 @@ apps = [
     "${package_root}/source/apps/nikoraes.bathroom_render.kit",
 ]
 
+# Route the extension download through Kit's own Python urllib instead of the
+# native omni.client library.
+#
+# The native library exposes no CA-bundle environment variable: searching
+# libcarb.omniclient.plugin.so for SSL_CERT_FILE, REQUESTS_CA_BUNDLE and
+# CURL_CA_BUNDLE finds none of them. So Zscaler's TLS interception cannot be
+# satisfied for that stack, and the build fails 528s in with "One or a few of
+# extensions failed to pull".
+#
+# urllib reads SSL_CERT_FILE and REQUESTS_CA_BUNDLE at import time, which is
+# where C:\Users\NRaes\.ca-bundle.pem already applies. precache_exts.py
+# turns this into:
+#   --/exts/omni.kit.registry.nucleus/useUrllibForHttp=1
+kit_use_urllib_for_http = true
+
 # registries = [
 #     { name = "kit/default", url = "https://ovextensionsprod.blob.core.windows.net/exts/kit/prod/${kit_version_major}/shared" },
 #     { name = "kit/sdk", url = "https://ovextensionsprod.blob.core.windows.net/exts/kit/prod/sdk/${kit_version_short}/${kit_git_hash}" },
