@@ -75,6 +75,13 @@ gives you a viewport for debugging materials interactively.
 > `%LOCALAPPDATA%\ov\data\exts\v2\index\*\summaries.json` (670 packages
 > across `kit/prod/default` and `kit/prod/sdk`).
 
+Verified on a clean checkout: `repo.sh build` exits 0, the solver resolves all 53
+declared extensions, and the resolved version lock is written into the staged
+app. The app is read from `source/apps/` because staging runs *after*
+precaching — pointing `[repo_precache_exts] apps` at `_build/` appears to work
+on an incremental build (the stale staged copy is already there) and then fails
+on a clean one.
+
 ## Layout
 
 ```
