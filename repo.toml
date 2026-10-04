@@ -127,7 +127,7 @@ publish_pip_cache = false
 # manifest and reading back what it enabled. An empty list means nothing to
 # resolve, so no extensions are downloaded and the build produces a stub kit.
 apps = [
-    "${package_root}/_build/${platform}/${config}/apps/nikoraes.bathroom_render.kit",
+    "${package_root}/source/apps/nikoraes.bathroom_render.kit",
 ]
 
 # registries = [
