@@ -1,17 +1,21 @@
 @echo off
-REM Wrapper so the seed runs without changing the machine's execution policy.
+REM Install the packman pre-seed that sidesteps Zscaler's .7z-from-CDN block.
 REM
-REM PowerShell blocks .ps1 on this machine (PSSecurityException). Three ways
-REM around it, in order of preference:
+REM The logic lives in seed_packman.py, not here and not in a .ps1:
 REM
-REM   1. this wrapper -- it calls powershell -ExecutionPolicy Bypass for one
-REM      process only, which does not alter the machine or user policy
-REM   2. Unblock-File, if you prefer to run the .ps1 directly:
-REM         Unblock-File .\tools\seed-packman.ps1
-REM   3. RemoteSigned for your user only (needs no admin):
-REM         Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+REM   * PowerShell blocks .ps1 on this machine (PSSecurityException)
+REM   * and its Get-FileHash is missing too, so even bypassing the policy leaves
+REM     the script depending on cmdlets this shell does not have
 REM
-REM Option 1 is the default here because it leaves no trace on the machine.
+REM Python is already present and working (uv resolves boto3 in under a second),
+REM so the .cmd is just a launcher. One implementation, no shell dialect
+REM lottery.
+REM
+REM Credentials come from %APPDATA%\renderq\renderq.env, the same file the
+REM render queue uses.
 
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0seed-packman.ps1" %*
+setlocal
+cd /d "%~dp0.."
+
+uv run --with boto3 python "%~dp0seed_packman.py" %*
 exit /b %errorlevel%

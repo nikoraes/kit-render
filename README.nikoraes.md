@@ -28,25 +28,25 @@ cd kit-render
 .\repo.bat build
 ```
 
-Use the `.cmd`, not the `.ps1` — corporate execution policy blocks running
-`.ps1` directly (`PSSecurityException`). The wrapper uses
-`powershell -ExecutionPolicy Bypass`, which applies to that one process and
-leaves the machine's policy untouched. If you prefer otherwise:
-
-```powershell
-Unblock-File .\tools\seed-packman.ps1          # then run the .ps1 directly
-Set-ExecutionPolicy -Scope CurrentUser RemoteSigned   # or allow scripts for your user
-```
+`.cmd` rather than `.ps1`, deliberately. This machine blocks PowerShell scripts
+(`PSSecurityException`) *and* its PowerShell is missing cmdlets the script needed
+(`Get-FileHash is not recognized`). Rather than work around both, the logic lives
+in `tools/seed_packman.py` and the `.cmd` is a one-line launcher — Python is
+already present and working here, and there is one implementation instead of a
+shell dialect lottery.
 
 Behind a corporate TLS-inspecting proxy, Zscaler blocks `.7z` from CDN hosts, and
-packman needs nine of them. `seed-packman.ps1` pre-places them in
-`C:\packman-repo\chk\` so packman treats them as already installed and never
-requests them. See [docs/zscaler-tls.md](docs/zscaler-tls.md) for the CA bundle
+packman needs nine of them. The seed pre-places them in `C:\packman-repo\chk\`
+so packman treats them as already installed and never requests them. See
+[docs/zscaler-tls.md](docs/zscaler-tls.md) for the CA bundle
 (`C:\Users\NRaes\.ca-bundle.pem`) that fixes the certificate error first.
 
-The extension stack itself is *not* affected — Kit's registry client
-(`omni.client.lib`) fetches it independently of packman, so no seed is needed
-there.
+The extension stack needs no seed. Kit's registry client fetches it
+independently of packman, and `repo.toml` sets `kit_use_urllib_for_http = true`
+so that fetch goes over Kit's Python urllib — the stack that reads the CA bundle.
+The native client library has no CA-bundle environment variable at all, which is
+why the build failed with *"One or a few of extensions failed to pull"* before
+that switch was set.
 
 Expect the first build to pull ~7.7 GB of extensions into
 `%LOCALAPPDATA%\ov\data\exts\v2\`, and the first *graphical* launch to
