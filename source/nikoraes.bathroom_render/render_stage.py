@@ -37,16 +37,72 @@ import carb
 import omni.kit.app
 import omni.usd
 
-_parser = argparse.ArgumentParser()
-_parser.add_argument("--scene", required=True)
-_parser.add_argument("--png", required=True)
-_parser.add_argument("--spp", type=int, default=512)
-_parser.add_argument("--rendermode", default="PathTracing")
-_parser.add_argument("--warmup", type=int, default=240)
-_parser.add_argument("--mdl-root", default=None)
-_parser.add_argument("--capture", default="auto", choices=("auto", "viewport",
-                                                          "framebuffer"))
-_args = _parser.parse_args()
+# ---------------------------------------------------------------------------
+# Configuration comes from the ENVIRONMENT, not argv.
+#
+# Measured, not assumed: Kit passes NO extra arguments to a --exec script. Both
+# of these give the script argv == [script_path] and nothing else, because Kit
+# consumes everything after the script name as its own settings:
+#
+#     --exec render_stage.py -- --scene S --png P     -> argv = [script]
+#     --exec render_stage.py --scene S --png P        -> argv = [script]
+#
+# That is what killed the first Windows run: --scene/--png never arrived,
+# argparse called sys.exit(2), and the SystemExit took the whole app down --
+# which is why the UI stalled at 7.6% RTX loading and asked to save the stage.
+#
+# So read the same RENDERQ_* variables the render queue already uses. argv is
+# still honoured when present, for running the script outside Kit.
+# ---------------------------------------------------------------------------
+_ENV = {
+    "scene": "RENDERQ_SCENE",
+    "png": "RENDERQ_PNG",
+    "spp": "RENDERQ_SPP",
+    "rendermode": "RENDERQ_RENDERMODE",
+    "warmup": "RENDERQ_WARMUP",
+    "mdl_root": "RENDERQ_MDL_ROOT",
+    "capture": "RENDERQ_CAPTURE",
+}
+
+
+def _cfg(name, default=None, cast=str):
+    """Environment first, then --flag on argv, then the default."""
+    v = os.environ.get(_ENV[name])
+    if v in (None, ""):
+        v = _ARGV.get(name.replace("_", "-"))
+    if v in (None, ""):
+        return default
+    try:
+        return cast(v)
+    except (TypeError, ValueError) as e:
+        raise SystemExit("[kit] bad value for %s (%s): %r"
+                         % (name, _ENV[name], v)) from e
+
+
+# Tolerant parse: never let argparse exit, because that kills the whole app.
+_p = argparse.ArgumentParser(add_help=False)
+for _f in ("--scene", "--png", "--spp", "--rendermode", "--warmup",
+           "--mdl-root", "--capture"):
+    _p.add_argument(_f)
+_ARGV, _unknown = _p.parse_known_args()
+_ARGV = {k: v for k, v in vars(_ARGV).items() if v is not None}
+
+_args = argparse.Namespace(
+    scene=_cfg("scene"),
+    png=_cfg("png"),
+    spp=_cfg("spp", 512, int),
+    rendermode=_cfg("rendermode", "PathTracing"),
+    warmup=_cfg("warmup", 240, int),
+    mdl_root=_cfg("mdl_root"),
+    capture=_cfg("capture", "auto"),
+)
+
+# A module-level `raise SystemExit` here would be logged as an error and would
+# kill the app mid-initialisation; post_quit is the clean way out.
+_CONFIG_OK = bool(_args.scene and _args.png)
+if not _CONFIG_OK:
+    print("[kit] MISSING CONFIG: set %s and %s (Kit does not forward argv to "
+          "--exec scripts)" % (_ENV["scene"], _ENV["png"]), flush=True)
 
 MDL_ROOT = _args.mdl_root or os.environ.get("RENDERQ_MDL_ROOT", "")
 
@@ -170,4 +226,8 @@ async def _after_open(out):
         omni.kit.app.get_app().post_quit(1)
 
 
-asyncio.ensure_future(_render())
+if _CONFIG_OK:
+    asyncio.ensure_future(_render())
+else:
+    import omni.kit.app as _ka
+    _ka.get_app().post_quit(2)

@@ -94,14 +94,44 @@ _build/windows-x86_64/release/kit/kit.exe    the real launcher, after build
 
 ## Running a render
 
+Configuration is passed through **environment variables**, not command-line
+arguments. Kit hands a `--exec` script no arguments at all — measured, not
+assumed; both of these give the script `argv == [script_path]`:
+
+```
+--exec render_stage.py -- --scene S --png P     -> argv = [script]
+--exec render_stage.py --scene S --png P        -> argv = [script]
+```
+
+Kit consumes everything after the script name as its own settings. The first
+Windows run failed exactly this way: argparse called `sys.exit(2)`, the
+`SystemExit` took the whole app down, and the UI stalled at 7.6% RTX loading and
+asked to save the stage.
+
 ```powershell
-set OMNI_KIT_ACCEPT_EULA=1
+$env:OMNI_KIT_ACCEPT_EULA = "1"
+$env:RENDERQ_SCENE  = "C:\path\to\scene.usda"
+$env:RENDERQ_PNG    = "C:\path\to\out.png"
+$env:RENDERQ_WARMUP = "240"
 
 .\_build\windows-x86_64\release\kit\kit.exe `
   .\_build\windows-x86_64\release\apps\nikoraes.bathroom_render.kit `
-  --exec source\nikoraes.bathroom_render\render_stage.py -- `
-  --scene <scene.usda> --png <out.png> --warmup 240
+  --exec source\nikoraes.bathroom_render\render_stage.py
 ```
+
+| variable | default | meaning |
+|---|---|---|
+| `RENDERQ_SCENE` | — | USD stage to open (required) |
+| `RENDERQ_PNG` | — | output PNG (required) |
+| `RENDERQ_WARMUP` | 240 | frames to step while MDL/PTX compiles |
+| `RENDERQ_SPP` | 512 | samples per pixel |
+| `RENDERQ_RENDERMODE` | PathTracing | or RayTraced |
+| `RENDERQ_MDL_ROOT` | — | dir holding `mdl/Base/OmniSurface.mdl` |
+| `RENDERQ_CAPTURE` | auto | `viewport`, `framebuffer`, or `auto` |
+
+`--scene`/`--png` still work when running the script outside Kit, where argv is
+normal. `tools/diagnostics/kit_argv_probe.py` re-measures the argv behaviour if
+this ever needs rechecking.
 
 For the interactive viewer instead — same app, no `--exec`:
 
